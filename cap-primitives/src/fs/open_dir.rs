@@ -3,7 +3,7 @@
 
 #[allow(unused_imports)]
 use crate::fs::open_unchecked;
-use crate::fs::{dir_options, dir_path_options, open, open_ambient_dir_impl};
+use crate::fs::{dir_options, dir_path_options, open, open_ambient_dir_impl, FollowSymlinks};
 use std::{fs, io, path::Path};
 
 /// Open a directory by performing an `openat`-like operation,
@@ -12,6 +12,12 @@ use std::{fs, io, path::Path};
 #[inline]
 pub fn open_dir(start: &fs::File, path: &Path) -> io::Result<fs::File> {
     open(start, path, &dir_options())
+}
+
+/// Similar to `open_dir`, but fails if the path names a symlink.
+#[inline]
+pub fn open_dir_nofollow(start: &fs::File, path: &Path) -> io::Result<fs::File> {
+    open(start, path, dir_options().follow(FollowSymlinks::No))
 }
 
 /// Open a directory by performing an unsandboxed `openat`-like operation.

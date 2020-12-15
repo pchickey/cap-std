@@ -1,6 +1,6 @@
 #[cfg(not(windows))]
 use cap_primitives::fs::symlink;
-use cap_primitives::fs::{set_times, FollowSymlinks};
+use cap_primitives::fs::{open_dir_nofollow, set_times, FollowSymlinks};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 #[cfg(target_os = "wasi")]
@@ -81,6 +81,12 @@ pub trait DirExt {
     ///
     /// [`std::os::windows::fs::symlink_dir`]: https://doc.rust-lang.org/std/os/windows/fs/fn.symlink_dir.html
     fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(&self, src: P, dst: Q) -> io::Result<()>;
+
+    /// Similar to `cap_std::fs::Dir::open_dir`, but fails if the path names a
+    /// symlink.
+    fn open_dir_nofollow<P: AsRef<Path>>(&self, path: P) -> io::Result<Self>
+    where
+        Self: Sized;
 }
 
 /// `fs_utf8` version of `DirExt`.
@@ -151,6 +157,10 @@ pub trait DirExtUtf8 {
     ///
     /// [`std::os::windows::fs::symlink_dir`]: https://doc.rust-lang.org/std/os/windows/fs/fn.symlink_dir.html
     fn symlink_dir<P: AsRef<str>, Q: AsRef<str>>(&self, src: P, dst: Q) -> io::Result<()>;
+
+    /// Similar to `cap_std::fs::Dir::open_dir`, but fails if the path names a
+    /// symlink.
+    fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self>;
 }
 
 #[cfg(feature = "std")]
@@ -248,6 +258,14 @@ impl DirExt for cap_std::fs::Dir {
     fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(&self, src: P, dst: Q) -> io::Result<()> {
         symlink_dir(src.as_ref(), unsafe { &as_file(self) }, dst.as_ref())
     }
+
+    #[inline]
+    fn open_dir_nofollow<P: AsRef<Path>>(&self, path: P) -> io::Result<Self> {
+        match open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref()) {
+            Ok(file) => Ok(unsafe { Self::from_std_file(file) }),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[cfg(feature = "async_std")]
@@ -344,6 +362,11 @@ impl DirExt for cap_async_std::fs::Dir {
     #[inline]
     fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(&self, src: P, dst: Q) -> io::Result<()> {
         symlink_dir(src.as_ref(), unsafe { &as_file(self) }, dst.as_ref())
+    }
+
+    #[inline]
+    fn open_dir_nofollow<P: AsRef<Path>>(&self, path: P) -> io::Result<Self> {
+        open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref())
     }
 }
 
@@ -445,6 +468,11 @@ impl DirExtUtf8 for cap_std::fs_utf8::Dir {
     #[inline]
     fn symlink_dir<P: AsRef<str>, Q: AsRef<str>>(&self, src: P, dst: Q) -> io::Result<()> {
         Self::symlink_dir(self, src, dst)
+    }
+
+    #[inline]
+    fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self> {
+        open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref())
     }
 }
 
@@ -552,6 +580,11 @@ impl DirExtUtf8 for cap_async_std::fs_utf8::Dir {
         let src = from_utf8(src)?;
         let dst = from_utf8(dst)?;
         symlink_dir(&src, unsafe { &as_file(self) }, &dst)
+    }
+
+    #[inline]
+    fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self> {
+        open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref())
     }
 }
 
