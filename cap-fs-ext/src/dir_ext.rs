@@ -160,7 +160,9 @@ pub trait DirExtUtf8 {
 
     /// Similar to `cap_std::fs::Dir::open_dir`, but fails if the path names a
     /// symlink.
-    fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self>;
+    fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self>
+    where
+        Self: Sized;
 }
 
 #[cfg(feature = "std")]
