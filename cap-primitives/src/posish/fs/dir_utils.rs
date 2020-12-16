@@ -4,12 +4,7 @@ use posish::fs::OFlags;
 use std::os::unix::{ffi::OsStrExt, fs::OpenOptionsExt};
 #[cfg(target_os = "wasi")]
 use std::os::wasi::{ffi::OsStrExt, fs::OpenOptionsExt};
-use std::{
-    ffi::OsStr,
-    fs, io,
-    ops::Deref,
-    path::{Component, Path},
-};
+use std::{ffi::OsStr, fs, io, ops::Deref, path::Path};
 #[cfg(racy_asserts)]
 use std::{ffi::OsString, os::unix::ffi::OsStringExt, path::PathBuf};
 
@@ -28,18 +23,11 @@ pub(crate) fn path_requires_dir(path: &Path) -> bool {
 /// Rust's `Path` implicitly strips trailing `.` components, however they aren't
 /// redundant in one case: at the end of a path they are the final path
 /// component, which has different path lookup behavior.
-pub(crate) fn path_has_trailing_dot(path: &Path) -> bool {
-    let mut bytes = path.as_os_str().as_bytes();
+pub(crate) fn path_implies_trailing_dot(path: &Path) -> bool {
+    let bytes = path.as_os_str().as_bytes();
 
-    // If a path ends with '.' followed by any number of '/'s, it's a trailing dot.
-    while let Some((last, rest)) = bytes.split_last() {
-        if *last == b'/' {
-            bytes = rest;
-        } else {
-            break;
-        }
-    }
-    bytes.ends_with(b"/.") && path.components().next_back() != Some(Component::CurDir)
+    // Trailing slash is considered equivalent to trailing slashdot.
+    bytes.ends_with(b"/.") || bytes.ends_with(b"/") || bytes == b"."
 }
 
 /// Append a trailing `/`. This can be used to require that the given `path`
@@ -121,15 +109,23 @@ fn test_path_requires_dir() {
 }
 
 #[test]
-fn test_path_has_trailing_dot() {
-    assert!(!path_has_trailing_dot(Path::new(".")));
-    assert!(!path_has_trailing_dot(Path::new("/")));
-    assert!(!path_has_trailing_dot(Path::new("//")));
-    assert!(path_has_trailing_dot(Path::new("/./.")));
-    assert!(!path_has_trailing_dot(Path::new("foo/")));
-    assert!(!path_has_trailing_dot(Path::new("foo//")));
-    assert!(path_has_trailing_dot(Path::new("foo//.")));
-    assert!(path_has_trailing_dot(Path::new("foo/./.")));
-    assert!(path_has_trailing_dot(Path::new("foo/./")));
-    assert!(path_has_trailing_dot(Path::new("foo/.//")));
+fn test_path_implies_trailing_dot() {
+    assert!(!path_implies_trailing_dot(Path::new("foo")));
+    assert!(!path_implies_trailing_dot(Path::new("foo.")));
+
+    assert!(!path_implies_trailing_dot(Path::new("/./foo")));
+    assert!(!path_implies_trailing_dot(Path::new("..")));
+    assert!(!path_implies_trailing_dot(Path::new("/..")));
+
+    assert!(path_implies_trailing_dot(Path::new(".")));
+
+    assert!(path_implies_trailing_dot(Path::new("/")));
+    assert!(path_implies_trailing_dot(Path::new("//")));
+    assert!(path_implies_trailing_dot(Path::new("/./.")));
+    assert!(path_implies_trailing_dot(Path::new("foo/")));
+    assert!(path_implies_trailing_dot(Path::new("foo//")));
+    assert!(path_implies_trailing_dot(Path::new("foo//.")));
+    assert!(path_implies_trailing_dot(Path::new("foo/./.")));
+    assert!(path_implies_trailing_dot(Path::new("foo/./")));
+    assert!(path_implies_trailing_dot(Path::new("foo/.//")));
 }

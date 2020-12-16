@@ -116,38 +116,91 @@ fn open_dir_nofollow() {
     check!(tmpdir.create_dir("dir"));
     check!(tmpdir.symlink_file("file", "symlink_file"));
     check!(tmpdir.symlink_dir("dir", "symlink_dir"));
+    check!(tmpdir.symlink_dir("dir/", "symlink_dir_slash"));
+    check!(tmpdir.symlink_dir("dir/.", "symlink_dir_slashdot"));
+    check!(tmpdir.symlink_dir("dir/..", "symlink_dir_slashdotdot"));
+    check!(tmpdir.symlink_dir("dir/../", "symlink_dir_slashdotdotslash"));
+    check!(tmpdir.symlink_dir(".", "symlink_dot"));
+    check!(tmpdir.symlink_dir("./", "symlink_dotslash"));
 
     // First try without `nofollow`. The "symlink_dir" case should succeed.
     assert!(tmpdir.open_dir("file").is_err());
     assert!(tmpdir.open_dir("symlink_file").is_err());
     check!(tmpdir.open_dir("symlink_dir"));
+    check!(tmpdir.open_dir("symlink_dir_slash"));
+    check!(tmpdir.open_dir("symlink_dir_slashdot"));
+    check!(tmpdir.open_dir("symlink_dir_slashdotdot"));
+    check!(tmpdir.open_dir("symlink_dir_slashdotdotslash"));
+    check!(tmpdir.open_dir("symlink_dot"));
+    check!(tmpdir.open_dir("symlink_dotslash"));
     check!(tmpdir.open_dir("dir"));
 
     // Next try with `nofollow`. The "symlink_dir" case should fail.
     assert!(tmpdir.open_dir_nofollow("file").is_err());
     assert!(tmpdir.open_dir_nofollow("symlink_file").is_err());
     assert!(tmpdir.open_dir_nofollow("symlink_dir").is_err());
+    assert!(tmpdir.open_dir_nofollow("symlink_dir_slash").is_err());
+    assert!(tmpdir.open_dir_nofollow("symlink_dir_slashdot").is_err());
+    assert!(tmpdir.open_dir_nofollow("symlink_dir_slashdotdot").is_err());
+    assert!(tmpdir
+        .open_dir_nofollow("symlink_dir_slashdotdotslash")
+        .is_err());
+    assert!(tmpdir.open_dir_nofollow("symlink_dot").is_err());
+    assert!(tmpdir.open_dir_nofollow("symlink_dotslash").is_err());
     check!(tmpdir.open_dir_nofollow("dir"));
 
-    // Check that we follow symlinks in non-leading components.
-    check!(tmpdir.open_dir_nofollow("dir/../dir"));
-    assert!(tmpdir
-        .open_dir_nofollow("symlink_dir/../symlink_dir")
-        .is_err());
-    check!(tmpdir.open_dir_nofollow("symlink_dir/../dir"));
-    assert!(tmpdir.open_dir_nofollow("dir/../symlink_dir").is_err());
+    // Check various ways of spelling `dir/../symlink_dir`.
+    for dir in &["dir", "symlink_dir"] {
+        let name = format!("{}/../symlink_dir", dir);
+        check!(tmpdir.open_dir(&name));
+        assert!(tmpdir.open_dir_nofollow(&name).is_err());
+    }
 
-    // Check trailing slashes. These all succeed because a trailing slash acts
-    // like a trailing slashdot, and the `.` isn't a symlink.
-    check!(tmpdir.open_dir_nofollow("dir/../dir/"));
-    check!(tmpdir.open_dir_nofollow("symlink_dir/../symlink_dir/"));
-    check!(tmpdir.open_dir_nofollow("symlink_dir/../dir/"));
-    check!(tmpdir.open_dir_nofollow("dir/../symlink_dir/"));
+    // Check various paths which end with a symlink (even though the symlink
+    // expansion may end with `/` or a non-symlink).
+    for symlink_dir in &[
+        "symlink_dir_slash",
+        "symlink_dir_slashdot",
+        "symlink_dir_slashdotdot",
+        "symlink_dir_slashdotdotslash",
+        "symlink_dot",
+        "symlink_dotslash",
+    ] {
+        check!(tmpdir.open_dir(&symlink_dir));
+        assert!(tmpdir.open_dir_nofollow(&symlink_dir).is_err());
+        for dir in &["dir", "symlink_dir"] {
+            let name = format!("{}/../{}", dir, symlink_dir);
+            check!(tmpdir.open_dir(&name));
+            assert!(tmpdir.open_dir_nofollow(&name).is_err());
+        }
+    }
 
-    // Check trailing slashdots. As above, these all succeed because the `.`
-    // isn't a symlink.
-    check!(tmpdir.open_dir_nofollow("dir/../dir/."));
-    check!(tmpdir.open_dir_nofollow("symlink_dir/../symlink_dir/."));
-    check!(tmpdir.open_dir_nofollow("symlink_dir/../dir/."));
-    check!(tmpdir.open_dir_nofollow("dir/../symlink_dir/."));
+    // Check those same paths, but with `/` or `/.` appended, so
+    // `open_dir_nofollow` can open them.
+    for suffix in &["/", "/."] {
+        for symlink_dir in &[
+            "symlink_dir",
+            "symlink_dir_slash",
+            "symlink_dir_slashdot",
+            "symlink_dir_slashdotdot",
+            "symlink_dir_slashdotdotslash",
+            "symlink_dot",
+            "symlink_dotslash",
+        ] {
+            let name = format!("{}{}", symlink_dir, suffix);
+            check!(tmpdir.open_dir(&name));
+            check!(tmpdir.open_dir_nofollow(&name));
+            for dir in &["dir", "symlink_dir"] {
+                let name = format!("{}/../{}", dir, name);
+                check!(tmpdir.open_dir(&name));
+                check!(tmpdir.open_dir_nofollow(&name));
+            }
+        }
+    }
+
+    // Check various ways of spelling `.`.
+    for cur_dir in &["dir/..", "dir/../", ".", "./"] {
+        check!(tmpdir.open_dir(cur_dir));
+        check!(tmpdir.open_dir_nofollow(cur_dir));
+    }
 }

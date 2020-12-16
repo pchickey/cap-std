@@ -518,3 +518,16 @@ fn symlink_hard_link() {
         .file_type()
         .is_symlink());
 }
+
+#[test]
+fn readdir_with_trailing_slashdot() {
+    let tmpdir = tmpdir();
+    check!(tmpdir.create_dir("dir"));
+    check!(tmpdir.create("dir/red"));
+    check!(tmpdir.create("dir/green"));
+    check!(tmpdir.create("dir/blue"));
+
+    assert_eq!(check!(tmpdir.read_dir("dir")).count(), 3);
+    assert_eq!(check!(tmpdir.read_dir("dir/")).count(), 3);
+    assert_eq!(check!(tmpdir.read_dir("dir/.")).count(), 3);
+}
