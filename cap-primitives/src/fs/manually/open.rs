@@ -3,10 +3,12 @@
 
 use super::{read_link_one, CanonicalPath, CowComponent};
 use crate::fs::{
-    dir_path_options, errors, open_dir_unchecked, open_unchecked, path_implies_trailing_dot,
-    stat_unchecked, FollowSymlinks, MaybeOwnedFile, Metadata, OpenOptions, OpenUncheckedError,
+    dir_path_options, errors, open_dir_unchecked, open_unchecked, path_has_trailing_dot,
+    path_has_trailing_slash, stat_unchecked, FollowSymlinks, MaybeOwnedFile, Metadata, OpenOptions,
+    OpenUncheckedError,
 };
 use std::{
+    borrow::Cow,
     ffi::OsStr,
     fs, io, mem,
     path::{Component, Path, PathBuf},
@@ -43,6 +45,10 @@ struct Context<'start> {
     /// Are we requesting write permissions, so we can't open a directory?
     dir_precluded: bool,
 
+    /// Where there a trailing slash on the path?
+    trailing_slash: bool,
+
+    /// If a path ends in `.`, `..`, or `/`, including after expanding symlinks,
     /// If a path ends in `.`, `..`, or `/`, including after expanding symlinks,
     /// we need to follow path resolution by opening `.` so that we obtain a
     /// full `dir_options` file descriptor and confirm that we have search
@@ -65,7 +71,8 @@ impl<'start> Context<'start> {
         _options: &OpenOptions,
         canonical_path: Option<&'start mut PathBuf>,
     ) -> Self {
-        let trailing_dot = path_implies_trailing_dot(path);
+        let trailing_slash = path_has_trailing_slash(&path);
+        let trailing_dot = path_has_trailing_dot(path);
         let trailing_dotdot = path.ends_with(Component::ParentDir);
 
         // Add the path components to the worklist. Rust's `Path` normalizes
@@ -85,13 +92,15 @@ impl<'start> Context<'start> {
             dirs: Vec::with_capacity(components.len()),
             components,
             canonical_path: CanonicalPath::new(canonical_path),
-            dir_required: false,
+            dir_required: trailing_slash,
 
             #[cfg(not(windows))]
             dir_precluded: _options.write || _options.append,
 
             #[cfg(windows)]
             dir_precluded: false,
+
+            trailing_slash,
 
             follow_with_dot: trailing_dot | trailing_dotdot,
 
@@ -192,11 +201,23 @@ impl<'start> Context<'start> {
             dir_path_options()
         };
 
+        // If the last path component ended in a slash, re-add the slash,
+        // as Rust's `Path` will have removed it, and we need it to get the
+        // same behavior from the OS.
+        let use_path: Cow<OsStr> = if self.components.is_empty() && self.trailing_slash {
+            let mut p = one.to_os_string();
+            p.push("/");
+            Cow::Owned(p)
+        } else {
+            Cow::Borrowed(one.as_ref())
+        };
+
         let dir_required = self.dir_required || use_options.dir_required;
+
         #[allow(clippy::redundant_clone)]
         match open_unchecked(
             &self.base,
-            one.as_ref(),
+            use_path.as_ref(),
             use_options
                 .clone()
                 .follow(FollowSymlinks::No)
@@ -272,7 +293,8 @@ impl<'start> Context<'start> {
 
     /// Push the components of `destination` onto the worklist stack.
     fn push_symlink_destination(&mut self, destination: PathBuf) {
-        let trailing_dot = path_implies_trailing_dot(&destination);
+        let trailing_slash = path_has_trailing_slash(&destination);
+        let trailing_dot = path_has_trailing_dot(&destination);
         let trailing_dotdot = destination.ends_with(Component::ParentDir);
 
         // Rust's `Path` hides a trailing dot, so handle it manually.
@@ -285,6 +307,8 @@ impl<'start> Context<'start> {
         // Record whether the new components ended with a path that implies
         // an open of `.` at the end of path resolution.
         self.follow_with_dot |= trailing_dot | trailing_dotdot;
+        self.trailing_slash |= trailing_slash;
+        self.dir_required |= trailing_slash;
 
         // As an optimization, hold onto the `PathBuf` buffer for later reuse.
         self.reuse = destination;

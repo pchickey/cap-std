@@ -158,26 +158,29 @@ fn open_dir_nofollow() {
 
     // Check various paths which end with a symlink (even though the symlink
     // expansion may end with `/` or a non-symlink).
-    for symlink_dir in &[
-        "symlink_dir_slash",
-        "symlink_dir_slashdot",
-        "symlink_dir_slashdotdot",
-        "symlink_dir_slashdotdotslash",
-        "symlink_dot",
-        "symlink_dotslash",
-    ] {
-        check!(tmpdir.open_dir(&symlink_dir));
-        assert!(tmpdir.open_dir_nofollow(&symlink_dir).is_err());
-        for dir in &["dir", "symlink_dir"] {
-            let name = format!("{}/../{}", dir, symlink_dir);
+    for suffix in &[""] {
+        for symlink_dir in &[
+            "symlink_dir_slash",
+            "symlink_dir_slashdot",
+            "symlink_dir_slashdotdot",
+            "symlink_dir_slashdotdotslash",
+            "symlink_dot",
+            "symlink_dotslash",
+        ] {
+            let name = format!("{}{}", symlink_dir, suffix);
             check!(tmpdir.open_dir(&name));
             assert!(tmpdir.open_dir_nofollow(&name).is_err());
+            for dir in &["dir", "symlink_dir"] {
+                let name = format!("{}/../{}", dir, name);
+                check!(tmpdir.open_dir(&name));
+                assert!(tmpdir.open_dir_nofollow(&name).is_err());
+            }
         }
     }
 
-    // Check those same paths, but with `/` or `/.` appended, so
+    // Check those same paths, but with various suffixes appended, so that
     // `open_dir_nofollow` can open them.
-    for suffix in &["/", "/."] {
+    for suffix in &["/", "/.", "/./"] {
         for symlink_dir in &[
             "symlink_dir",
             "symlink_dir_slash",
