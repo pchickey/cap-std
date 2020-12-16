@@ -862,7 +862,7 @@ fn read_link() {
         // junction with special permissions
         error_contains!(
             root.read_link(r"Documents and Settings\"),
-            "a path led outside of the filesystem"
+            "Access is denied"
         );
     }
     let tmpdir = tmpdir();
