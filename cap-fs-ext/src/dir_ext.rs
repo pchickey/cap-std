@@ -369,7 +369,7 @@ impl DirExt for cap_async_std::fs::Dir {
     #[inline]
     fn open_dir_nofollow<P: AsRef<Path>>(&self, path: P) -> io::Result<Self> {
         match open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref()) {
-            Ok(file) => Ok(unsafe { Self::from_std_file(file) }),
+            Ok(file) => Ok(unsafe { Self::from_std_file(file.into()) }),
             Err(e) => Err(e),
         }
     }
@@ -477,7 +477,10 @@ impl DirExtUtf8 for cap_std::fs_utf8::Dir {
 
     #[inline]
     fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self> {
-        open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref())
+        match open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref().as_ref()) {
+            Ok(file) => Ok(unsafe { Self::from_std_file(file.into()) }),
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -589,7 +592,10 @@ impl DirExtUtf8 for cap_async_std::fs_utf8::Dir {
 
     #[inline]
     fn open_dir_nofollow<P: AsRef<str>>(&self, path: P) -> io::Result<Self> {
-        open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref())
+        match open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref().as_ref()) {
+            Ok(file) => Ok(unsafe { Self::from_std_file(file.into()) }),
+            Err(e) => Err(e),
+        }
     }
 }
 
