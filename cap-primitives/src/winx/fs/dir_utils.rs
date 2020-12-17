@@ -48,7 +48,7 @@ pub(crate) fn path_has_trailing_dot(path: &Path) -> bool {
 pub(crate) fn path_has_trailing_slash(path: &Path) -> bool {
     let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
 
-    units.ends_with(&['/' as u16]) || units.ends_with(&['\\' as u16])
+    wide.ends_with(&['/' as u16]) || wide.ends_with(&['\\' as u16])
 }
 
 /// Append a trailing `\\`. This can be used to require that the given `path`
