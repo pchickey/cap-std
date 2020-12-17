@@ -368,7 +368,10 @@ impl DirExt for cap_async_std::fs::Dir {
 
     #[inline]
     fn open_dir_nofollow<P: AsRef<Path>>(&self, path: P) -> io::Result<Self> {
-        open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref())
+        match open_dir_nofollow(unsafe { &as_file(self) }, path.as_ref()) {
+            Ok(file) => Ok(unsafe { Self::from_std_file(file) }),
+            Err(e) => Err(e),
+        }
     }
 }
 
