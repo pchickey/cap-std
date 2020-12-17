@@ -39,7 +39,7 @@ pub(crate) fn path_has_trailing_dot(path: &Path) -> bool {
     }
 
     (units.ends_with(&['/' as u16, '.' as _]) || units.ends_with(&['\\' as u16, '.' as _]))
-        || path.components().next_back() != Some(Component::CurDir)
+        || path.components().next_back() == Some(Component::CurDir)
 }
 
 /// Rust's `Path` implicitly strips trailing `/`s, however they aren't
